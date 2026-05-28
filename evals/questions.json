@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "category": "simple_lookup",
+    "question": "What is the status of invoice 2014?"
+  },
+  {
+    "id": 2,
+    "category": "simple_lookup",
+    "question": "What are the payment terms for SteelWorks Manufacturing?"
+  },
+  {
+    "id": 3,
+    "category": "simple_lookup",
+    "question": "What items does CleanSpace Facilities have in their catalog?"
+  },
+  {
+    "id": 4,
+    "category": "filtering_aggregation",
+    "question": "Which invoices are currently overdue?"
+  },
+  {
+    "id": 5,
+    "category": "filtering_aggregation",
+    "question": "What is the total pending invoice amount for Acme Technology Solutions?"
+  },
+  {
+    "id": 6,
+    "category": "filtering_aggregation",
+    "question": "Which suppliers have contracts expiring within 90 days?"
+  },
+  {
+    "id": 7,
+    "category": "multi_step_reasoning",
+    "question": "Does supplier CleanSpace Facilities have any invoices that exceed their monthly contract value?"
+  },
+  {
+    "id": 8,
+    "category": "multi_step_reasoning",
+    "question": "For SteelWorks Manufacturing, what's the total invoiced amount vs. their annual contract value?"
+  },
+  {
+    "id": 9,
+    "category": "multi_step_reasoning",
+    "question": "Which purchase orders have been delivered but don't have a corresponding paid invoice?"
+  },
+  {
+    "id": 10,
+    "category": "ambiguous",
+    "question": "What should supplier Acme Technology Solutions follow up on?"
+  },
+  {
+    "id": 11,
+    "category": "ambiguous",
+    "question": "Give me a summary of SteelWorks Manufacturing's account health."
+  },
+  {
+    "id": 12,
+    "category": "ambiguous",
+    "question": "Are there any red flags across our supplier relationships?"
+  }
+]
