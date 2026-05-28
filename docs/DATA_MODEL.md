@@ -25,7 +25,7 @@
 | line_items | array | List of {description, quantity, unit_price} |
 | total_amount | float | Computed total |
 | currency | string | ISO currency code |
-| status | enum | draft, submitted, approved, received, cancelled |
+| status | enum | submitted, acknowledged |
 | created_date | date | When the PO was created |
 | delivery_date | date/null | Expected or actual delivery date |
 

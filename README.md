@@ -5,9 +5,8 @@ A procurement agent coding project. You're given a working mock API with pre-see
 ## Quick Start
 
 ### Prerequisites
-
 - Python 3.11+
-- An OpenAI API key
+- An OpenAI Key
 
 ### Setup
 
@@ -22,6 +21,14 @@ pip install -r requirements.txt
 # Configure environment
 cp .env.example .env
 # Edit .env with your OpenAI API key
+```
+
+### Lint & Type Check
+
+```bash
+python -m ruff check .
+python -m mypy agent/ --ignore-missing-imports
+python -m mypy api/ --ignore-missing-imports
 ```
 
 ### Run the API
@@ -63,10 +70,10 @@ The API serves pre-seeded procurement data (resets on restart). Key endpoints:
 | `GET /suppliers/{id}` | Get supplier details |
 | `GET /purchase-orders` | List/filter purchase orders |
 | `GET /purchase-orders/{id}` | Get PO details |
-| `POST /purchase-orders` | Create a new PO |
-| `PATCH /purchase-orders/{id}` | Update PO status |
+| `POST /purchase-orders/{id}/acknowledge` | Acknowledge a submitted PO |
 | `GET /invoices` | List/filter invoices |
 | `GET /invoices/{id}` | Get invoice details |
+| `POST /invoices` | Create a new invoice |
 | `GET /contracts` | List/filter contracts |
 | `GET /contracts/{id}` | Get contract details |
 | `GET /catalog` | Search catalog items |

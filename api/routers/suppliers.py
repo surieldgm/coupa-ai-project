@@ -12,6 +12,7 @@ def list_suppliers(
     status: SupplierStatus | None = None,
     min_rating: float | None = Query(None, ge=1, le=5),
 ):
+    """List all suppliers, optionally filtered by category, status, or minimum rating."""
     results = SUPPLIERS
     if category:
         results = [s for s in results if s.category == category]
@@ -24,6 +25,7 @@ def list_suppliers(
 
 @router.get("/{supplier_id}", response_model=Supplier)
 def get_supplier(supplier_id: int):
+    """Get a single supplier by ID. Returns 404 if not found."""
     for s in SUPPLIERS:
         if s.id == supplier_id:
             return s

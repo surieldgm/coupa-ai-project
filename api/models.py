@@ -22,11 +22,8 @@ class SupplierStatus(str, Enum):
 
 
 class POStatus(str, Enum):
-    DRAFT = "draft"
     SUBMITTED = "submitted"
-    APPROVED = "approved"
-    RECEIVED = "received"
-    CANCELLED = "cancelled"
+    ACKNOWLEDGED = "acknowledged"
 
 
 class InvoiceStatus(str, Enum):
