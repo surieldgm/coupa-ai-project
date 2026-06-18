@@ -30,7 +30,9 @@ You decide which tools to implement and how to design the schemas. Not every stu
 
 ### Stage 2: Skills
 
-Skills are multi-step workflows that compose multiple tools to answer higher-level questions. For example, a "full AR status" skill might pull invoices, check for overdue payments, cross-reference against PO delivery status, and summarize. How you implement skills is an architectural decision.
+Implement skills in the **Anthropic Agent Skills** sense: self-contained capability modules the model discovers and loads on demand, not just hardcoded orchestration functions. Each skill packages a description (which the model uses to decide *when* to invoke it) alongside the instructions and resources needed to execute it, and is loaded progressively rather than living permanently in the context window. See Anthropic's Agent Skills documentation for the structure: https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview
+
+A skill is a multi-step workflow that composes multiple tools to answer a higher-level question. For example, a "full AR status" skill might pull invoices, check for overdue payments, cross-reference against PO delivery status, and summarize. How you author and wire up the skills within that standard is an architectural decision we'll discuss — including what stays deterministic in code versus what the model drives.
 
 ### Stage 3: Traces
 
