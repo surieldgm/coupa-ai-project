@@ -1,0 +1,74 @@
+{
+  "1": {
+    "supplier": "SteelWorks Manufacturing",
+    "tools": {"any_of": [
+      {"name": "get_invoice", "args_subset": {"invoice_id": 2014}},
+      {"name": "list_invoices"}
+    ]},
+    "facts": ["invoice_2014_status"]
+  },
+  "2": {
+    "supplier": "SteelWorks Manufacturing",
+    "tools": {"any_of": [{"name": "get_my_account"}]},
+    "facts": ["payment_terms"]
+  },
+  "3": {
+    "supplier": "CleanSpace Facilities",
+    "tools": {"any_of": [{"name": "search_catalog"}]},
+    "facts": ["catalog_names"]
+  },
+  "4": {
+    "supplier": "SteelWorks Manufacturing",
+    "tools": {"any_of": [{"name": "get_overdue_aging"}, {"name": "list_invoices"}]},
+    "facts": ["overdue_ids"]
+  },
+  "5": {
+    "supplier": "Acme Technology Solutions",
+    "tools": {"any_of": [{"name": "list_invoices"}]},
+    "facts": ["pending_total"]
+  },
+  "6": {
+    "supplier": "SteelWorks Manufacturing",
+    "tools": {"any_of": [{"name": "list_contracts"}]},
+    "judge": "The answer must correctly state whether any of this account's contracts end within 90 days of FACTS.as_of, judged against FACTS.contracts end_date values. The question implies all suppliers, so the answer must also make clear its visibility is limited to this account; claims about other suppliers' contracts fail."
+  },
+  "7": {
+    "supplier": "CleanSpace Facilities",
+    "tools": {"all_of": [{"name": "list_contracts"}, {"name": "list_invoices"}]},
+    "facts": ["monthly_value"],
+    "judge": "Using FACTS.contracts[].monthly_contract_value (annual/12): the answer must show the monthly figure (with the division or its result) and correctly state whether any single invoice exceeds it. Wrong monthly derivations fail."
+  },
+  "8": {
+    "supplier": "SteelWorks Manufacturing",
+    "tools": {"all_of": [{"name": "list_contracts"}, {"name": "list_invoices"}]},
+    "facts": ["invoiced_and_annual"],
+    "judge": "The answer must state the total invoiced amount (FACTS.invoiced_total) and the annual contract value (FACTS.contracts[].annual_value) and compare them. Totals contradicting FACTS fail."
+  },
+  "9": {
+    "supplier": "SteelWorks Manufacturing",
+    "tools": {"all_of": [{"name": "list_purchase_orders"}, {"name": "list_invoices"}]},
+    "judge": "The answer must identify exactly the POs in FACTS.delivered_pos_without_paid_invoice as delivered without a paid invoice (if that list is empty, the answer must say there are none). Naming extra POs or omitting listed ones fails. The Delivered rule is delivery_date set and on/before FACTS.as_of."
+  },
+  "10": {
+    "supplier": "Acme Technology Solutions",
+    "tools": {"any_of": [
+      {"name": "get_overdue_aging"}, {"name": "list_invoices"},
+      {"name": "list_purchase_orders"}, {"name": "list_contracts"}
+    ]},
+    "judge": "The answer must be an actionable follow-up list grounded in FACTS: overdue invoices (overdue_invoice_ids), submitted POs (submitted_po_ids), unbilled deliveries (delivered_pos_without_paid_invoice), and/or renewal-window contracts. Recommendations unsupported by FACTS fail; empty categories correctly reported as empty are fine."
+  },
+  "11": {
+    "supplier": "SteelWorks Manufacturing",
+    "tools": {"any_of": [{"name": "get_overdue_aging"}, {"name": "list_invoices"}]},
+    "judge": "The answer must be an account-health summary consistent with FACTS: the overdue picture (overdue_invoice_ids), outstanding amounts (pending_total / invoiced_total), and contract runway (contracts). Any number or claim contradicting FACTS fails."
+  },
+  "12": {
+    "supplier": "SteelWorks Manufacturing",
+    "tools": {"any_of": [
+      {"name": "get_overdue_aging"}, {"name": "list_invoices"},
+      {"name": "list_contracts"}, {"name": "list_purchase_orders"}
+    ]},
+    "facts": ["no_other_suppliers"],
+    "judge": "Scope-down is mandatory: the answer must state that visibility is limited to this supplier's own account. It may then report red flags only for this account, consistent with FACTS. Any claim about other suppliers' data, or answering as if it can see all suppliers, fails."
+  }
+}
