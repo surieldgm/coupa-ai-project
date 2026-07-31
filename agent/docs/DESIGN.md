@@ -27,13 +27,16 @@ REPL (main.py)                 eval harness (evals/)
 **Interface (the whole thing):**
 
 ```python
-Session(*, supplier_id, openai, registry, permissions, trace, config)  # all injected
+Session(*, supplier_id, supplier_name, openai, registry, permissions, trace, config)
 session.ask(user_text) -> TurnResult
-session.session_id / session.supplier_id                               # read-only
+session.session_id / session.supplier_id / session.supplier_name       # read-only
 
 TurnResult: answer, tool_calls, events, usage, stop_reason("completed" | "tool_budget")
 ToolCall:   name, arguments, output, gated, decision
 ```
+
+(`supplier_name` is display identity for the system prompt, resolved by the
+composition root; tenant identity remains `supplier_id` alone.)
 
 **Invariants** (part of the interface — callers may rely on them):
 1. One Session ↔ one Acting Supplier, fixed at construction; `TenancyError` if the injected registry/client is bound to a different tenant. No interface path changes it.
@@ -52,13 +55,13 @@ ToolCall:   name, arguments, output, gated, decision
 
 | Module | Interface | Adapters / notes |
 |---|---|---|
-| **ToolRegistry** | `list_tools() -> [schema]`, `call_tool(name, args) -> ToolResult`, `is_gated(name)` | MCP-congruent seam (ADR 0002). Gating is registry metadata (tool modules declare it), not Session config. Tenant-bound at construction via ProcurementClient. |
+| **ToolRegistry** | `list_tools() -> [schema]`, `call_tool(name, args) -> ToolOutcome`, `is_gated(name)`, `summarize(name, args)` | MCP-congruent seam (ADR 0002). Gating and approval summaries are registry metadata (tool modules declare them), not Session config. Tenant-bound at construction via ProcurementClient. |
 | **ProcurementClient** | typed per-endpoint methods, *no supplier parameter anywhere* — tenancy injected internally | Concrete class over httpx; tests swap `httpx.MockTransport`. No Protocol wrapper: one real transport = hypothetical seam. |
 | **PermissionPolicy** | `decide(ApprovalRequest) -> APPROVE / APPROVE_FOR_SESSION / DENY` | Two real adapters: `ConsoleApprovals` (REPL, blocks on input), `AutoDeny` (harness default). Stateless. |
 | **TraceSink** | `emit(event) -> None` | Two real adapters: `JsonlSink(path)`, `InMemorySink`. The observation extension point. |
-| **SkillLibrary** | `menu() -> [(name, description)]`, `load(relpath) -> str` | Filesystem SKILL.md scan; path-traversal guard (loads confined to skills dir). |
+| **SkillLibrary** | `menu() -> [(name, description)]`, `load(relpath) -> str` | Filesystem SKILL.md scan; path-traversal guard (loads confined to skills dir). Not a port (one adapter, no seam): Session constructs it internally from `config.skills_dir` — the injected-dependency rule applies to ports, not to this. |
 | **prune()** | pure: `(conversation, budget) -> conversation` | Not injectable — policy, not a port. Tested directly, no mocks. |
-| **make_session()** | composition root: `make_session(supplier_id, *, permissions=AutoDeny(), trace=InMemorySink(), ...)` | The only place default adapters are constructed. Safe default = auto-deny. `Session.__init__` never builds a dependency. |
+| **make_session()** | composition root: `make_session(supplier_id, *, permissions=AutoDeny(), trace=InMemorySink(), ...)` | The only place default adapters are constructed. Safe default = auto-deny. `Session.__init__` never builds a port adapter. |
 
 ## Test surfaces
 

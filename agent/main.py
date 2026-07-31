@@ -1,60 +1,68 @@
-"""Minimal supplier agent using the OpenAI Responses API."""
+"""Interactive REPL — a thin adapter over Session."""
 
+from __future__ import annotations
+
+import argparse
 import os
+from datetime import UTC, datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
-from openai import DefaultHttpxClient, OpenAI
 
-from agent.tools import TOOL_SCHEMAS, TOOL_REGISTRY, execute_tool_call
-
-load_dotenv()
-
-http_client = DefaultHttpxClient(verify=False) if os.getenv("DISABLE_SSL_VERIFY") else None
-client = OpenAI(http_client=http_client)
-MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4")
-
-# TEMPLATE: Update accordingly
-SYSTEM_PROMPT = (
-    "You are a supplier accounts receivable assistant."
-)
+from agent.policy import ConsoleApprovals
+from agent.procurement import ProcurementError
+from agent.session import ModelError
+from agent.tracing import JsonlSink
+from agent.wiring import make_session
 
 
-def run_agent_loop():
-    conversation = [{"role": "developer", "content": SYSTEM_PROMPT}]
+def main() -> None:
+    load_dotenv()
+    parser = argparse.ArgumentParser(description="Supplier AR Agent")
+    parser.add_argument(
+        "--supplier",
+        type=int,
+        default=int(os.getenv("SUPPLIER_ID", "1")),
+        help="Acting Supplier id for this session (default: $SUPPLIER_ID or 1)",
+    )
+    args = parser.parse_args()
 
-    print("Supplier AR Agent (type 'quit' to exit)")
+    trace_path = (
+        Path(__file__).resolve().parent
+        / "traces"
+        / f"session-{datetime.now(UTC):%Y%m%dT%H%M%S}.jsonl"
+    )
+    try:
+        session = make_session(
+            args.supplier, permissions=ConsoleApprovals(), trace=JsonlSink(trace_path)
+        )
+    except ProcurementError as exc:
+        raise SystemExit(
+            f"cannot start: {exc.message} — is the API running "
+            "(uvicorn api.main:app) and the supplier id valid?"
+        ) from exc
+
+    print(f"Supplier AR Agent — acting for {session.supplier_name} (#{session.supplier_id})")
+    print(f"trace: {trace_path}")
     print("-" * 40)
 
     while True:
-        user_input = input("\nYou: ").strip()
+        try:
+            user_input = input("\nYou: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
         if not user_input or user_input.lower() in ("quit", "exit"):
             break
-
-        conversation.append({"role": "user", "content": user_input})
-
-        while True:
-            response = client.responses.create(
-                model=MODEL,
-                input=conversation,
-                tools=TOOL_SCHEMAS,
-            )
-
-            has_tool_calls = False
-            for item in response.output:
-                if item.type == "function_call":
-                    has_tool_calls = True
-                    result = execute_tool_call(item, TOOL_REGISTRY)
-                    conversation.append(item)
-                    conversation.append(
-                        {"type": "function_call_output", "call_id": item.call_id, "output": result}
-                    )
-
-            if not has_tool_calls:
-                break
-
-        print(f"\nAssistant: {response.output_text}")
-        conversation.append({"role": "assistant", "content": response.output_text})
+        try:
+            result = session.ask(user_input)
+        except ModelError as exc:
+            print(f"\n[model error — try again] {exc}")
+            continue
+        for call in result.tool_calls:
+            marker = f" [{call.decision}]" if call.gated else ""
+            print(f"  -> {call.name}({call.arguments}){marker}")
+        print(f"\nAssistant: {result.answer}")
 
 
 if __name__ == "__main__":
-    run_agent_loop()
+    main()
