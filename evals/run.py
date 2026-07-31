@@ -91,6 +91,7 @@ def run_question(
 
     # One bad question must never sink the run: every failure below becomes
     # an "error" verdict for this question, and the report still gets written.
+    session = None
     try:
         supplier_id = gt.supplier_id(expectation["supplier"])
         session = make_session(supplier_id, base_url=api_base)
@@ -99,6 +100,9 @@ def run_question(
         record["error"] = f"{type(exc).__name__}: {exc}"
         record["verdict"] = "error"
         return record
+    finally:
+        if session is not None:
+            session.close()  # a full run builds dozens of sessions
 
     calls = [(t.name, t.arguments) for t in result.tool_calls]
     record["answer"] = result.answer

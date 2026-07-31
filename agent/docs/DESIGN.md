@@ -67,6 +67,8 @@ composition root; tenant identity remains `supplier_id` alone.)
 
 The interface is the test surface: harness and tests assert through `ask() -> TurnResult` (+ sink contents), never past the seam. Internal seams (prune as pure fn, ProcurementClient over MockTransport) are used by their own tests only and are not exported through Session's interface. Old-style unit tests against the raw loop are superseded, not layered.
 
+Three tiers — unit (model + API substituted), end-to-end (real server over real HTTP, model scripted), evals (nothing substituted). The tier boundary is the model, because it is the only dependency with no seed. Details and journey coverage: [TESTING.md](TESTING.md).
+
 ## Revised after evals: `get_invoiced_totals`
 
 The original tool surface deliberately omitted `/analytics/spend-by-supplier`,

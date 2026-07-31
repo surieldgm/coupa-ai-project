@@ -66,6 +66,9 @@ class ToolRegistry:
     def supplier_id(self) -> int:
         return self._client.supplier_id
 
+    def close(self) -> None:
+        self._client.close()
+
     def list_tools(self) -> list[dict[str, Any]]:
         return [spec.schema for spec in self._specs.values()]
 

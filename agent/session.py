@@ -133,6 +133,11 @@ class Session:
 
     # -- the one verb ------------------------------------------------------
 
+    def close(self) -> None:
+        """Release the procurement connection pool. Optional for a
+        process-lifetime Session; matters when many are created in a loop."""
+        self._registry.close()
+
     def ask(self, user_text: str) -> TurnResult:
         if self._in_turn:
             raise SessionError("ask() is not reentrant")

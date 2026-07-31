@@ -29,7 +29,13 @@ def make_session(
 ) -> Session:
     base_url = base_url or os.getenv("API_BASE_URL") or "http://localhost:8000"
     client = ProcurementClient(base_url, supplier_id)
-    account = client.get_my_account()  # fail fast if the API is down or the supplier is unknown
+    try:
+        # Fail fast if the API is down or the supplier is unknown — and do
+        # not leak the connection pool when it does.
+        account = client.get_my_account()
+    except BaseException:
+        client.close()
+        raise
 
     if openai_client is None:
         http_client = DefaultHttpxClient(verify=False) if os.getenv("DISABLE_SSL_VERIFY") else None

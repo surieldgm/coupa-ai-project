@@ -13,8 +13,9 @@ uvicorn api.main:app --reload          # the mock API (upstream, untouched)
 python -m agent.main --supplier 2      # REPL as SteelWorks
 python -m evals.run                    # eval harness (1 run/question)
 python -m evals.run --runs             # consistency mode (3 runs, majority)
-python -m unittest discover -s agent/tests -t .   # 37 tests
-python -m unittest discover -s evals/tests -t .   # 23 tests
+python -m unittest discover -s agent/tests -t .   # 50 tests, incl. e2e
+python -m unittest agent.tests.test_e2e           # e2e only (~1s, no key)
+python -m unittest discover -s evals/tests -t .   # 25 tests
 ```
 
 Config: `.env` with `OPENAI_API_KEY`; optional `OPENAI_MODEL` (default
@@ -95,11 +96,33 @@ per-question consistency. `expectations.json` maps each question to its
 Session supplier; cross-tenant question 12 asserts scope-down plus zero
 mentions of other suppliers' names.
 
+## Testing
+
+Three tiers, split by what is real — full rationale in
+[docs/TESTING.md](docs/TESTING.md). Unit tests sit at the seams DESIGN.md
+pre-agreed. The **end-to-end** tier
+([tests/test_e2e.py](tests/test_e2e.py)) starts a real uvicorn server and
+drives the whole production stack over real HTTP — real wiring, real
+tool schemas, skills off disk, a real JSONL trace file — with only the
+model scripted, because that is the one dependency with no seed. It runs
+in about a second, needs no API key, and pins twelve reviewer-facing
+journeys: tenancy, Existence Ambiguity, traversal, gate decline *verified
+against server state*, gate approval *verified to persist*, remembered
+approval, progressive skill disclosure, trace validity, multi-turn
+context. The eval tier answers the remaining question — whether the model
+*chooses* well — and is deliberately not part of the test suite.
+
+Writing that tier paid for itself immediately: it surfaced two connection
+leaks (`ProcurementClient` pools were never released, and `make_session`
+leaked one on its fail-fast path), now fixed via `Session.close()`, and it
+caught a test-isolation bug of its own — mutating tests contending over
+the same POs — fixed by giving each its own supplier.
+
 ## Process evidence
 
 Design-before-code artifacts (glossary, ADRs, module design, spec) were
 produced pre-fork and committed first. Implementation was test-first at
-the seams DESIGN.md pre-agreed (60 stdlib-unittest tests; pytest isn't in
+the seams DESIGN.md pre-agreed (75 stdlib-unittest tests; pytest isn't in
 the pinned deps), each milestone gated by ruff + mypy and a two-axis
 (standards + spec) review, plus a final multi-agent adversarial review
 (findings triaged below). Work was tracked as issues #1–#8 on this fork.

@@ -62,6 +62,12 @@ class ProcurementClient:
         self.supplier_id = supplier_id
         self._http = httpx.Client(base_url=base_url, timeout=timeout, transport=transport)
 
+    def close(self) -> None:
+        """Release the underlying connection pool. Long-lived callers (the
+        REPL) can ignore this; callers that create many clients (the eval
+        harness) should not."""
+        self._http.close()
+
     def _request(
         self,
         method: str,

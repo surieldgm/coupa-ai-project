@@ -81,7 +81,8 @@ elision instead); cross-tenant "buyer-side" answering of any kind.
 - **Diff discipline:** only `agent/` and `evals/` change; runtime dirs (`agent/traces/`,
   `evals/results/`) are ignored via nested `.gitignore`s.
 - **Quality gates:** `ruff check .` and `mypy agent/ --ignore-missing-imports` green at
-  every commit.
+  every commit; unit and end-to-end suites green (see [TESTING.md](TESTING.md)). The
+  end-to-end tier must run without an API key so it stays CI-viable.
 - **Dependencies:** pinned `requirements.txt` only (no pytest, no PyYAML, no mcp) —
   stdlib solutions where a helper is missing.
 - **Config:** `OPENAI_API_KEY`, `OPENAI_MODEL` (default gpt-5.4), `API_BASE_URL`
