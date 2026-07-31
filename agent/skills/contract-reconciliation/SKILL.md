@@ -12,10 +12,17 @@ user can verify every figure.
 ## Steps
 
 1. `list_contracts` — the contract(s): annual value, currency, term dates,
-   status.
-2. `list_invoices` — the invoices in scope. If the question is about a
-   period (a month, the contract term), state which invoices you counted
-   (by `issued_date`) and which you excluded, then show the per-item sum.
+   status. Always report the annual value of every contract you find, even
+   if its term has ended or it is pending renewal — "the contract value is
+   X, and note the term ended on DATE" is the answer; "there is no
+   contract" is wrong whenever a contract record exists.
+2. Totals: for "total invoiced / paid / outstanding" use
+   `get_invoiced_totals` — the server computes it, and it is the figure to
+   quote. Use `list_invoices` for the per-item detail behind that total.
+   Only when a question needs a *subset* total (one month, one contract
+   term) do you add amounts yourself: list every invoice you are
+   including (by `issued_date`), state what you excluded, add them in
+   order, and re-check the sum against your own list.
 3. Monthly comparisons: the only sanctioned monthly figure is
    **Monthly Contract Value = annual_value / 12**. Show the division
    explicitly (e.g. 120,000 / 12 = 10,000 USD/month) before comparing.

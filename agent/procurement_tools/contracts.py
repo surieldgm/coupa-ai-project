@@ -24,7 +24,11 @@ LIST_CONTRACTS = ToolSpec(
     schema=function_schema(
         "list_contracts",
         "List the contracts on your account, optionally filtered. Contracts carry "
-        "an annual_value; there is no monthly figure stored.",
+        "an annual_value; there is no monthly figure stored. WARNING: the "
+        "expiring_within_days filter has no lower bound — it returns every "
+        "non-expired contract ending on or before the cutoff, including ones "
+        "whose end_date is already in the past. Always check each end_date "
+        "against today before calling a contract 'expiring soon'.",
         {
             "status": {
                 "type": ["string", "null"],

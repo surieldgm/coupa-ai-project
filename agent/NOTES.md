@@ -104,6 +104,44 @@ the pinned deps), each milestone gated by ruff + mypy and a two-axis
 (standards + spec) review, plus a final multi-agent adversarial review
 (findings triaged below). Work was tracked as issues #1–#8 on this fork.
 
+## What the evals actually caught
+
+The harness went 6/12 on its first live run. Every failure was worth
+having, and they split into two kinds.
+
+**Three were harness bugs of my own making.** The `FACTS` block fed to the
+rubric judge held only aggregates, while the rubric called it
+"authoritative" — so the judge marked correct per-invoice figures as
+ungrounded simply because my snapshot omitted them, and once compared an
+overdue total against `pending_total` (different quantities, badly named).
+Fix: `FACTS` now mirrors the agent's own sources — per-item invoice and PO
+rows, plus the same server analytics the agent's tools return — and the
+rubric says absence is not contradiction. A judge that lacks the agent's
+evidence fails correct answers.
+
+**Four were real agent defects, and one was a design decision I got
+wrong.** Listed with what changed:
+
+| Defect | Root cause | Fix |
+|---|---|---|
+| Summed 10 invoices to 153,250 (truth 154,250), repeatedly | model arithmetic | added `get_invoiced_totals`; the server computes it (see DESIGN.md) |
+| Scope-down then *offered* to check its own account | prompt let it stop at the boundary | scope-down must answer the in-tenant part in the same reply |
+| Reported a year-lapsed contract as "expiring within 90 days" | the API's `expiring_within_days` filter has **no lower bound** | tool description warns; skills re-check `end_date` against today |
+| Then over-corrected: "no active contract" instead of its value | lapsed treated as absent | a record that exists always yields its number, qualified |
+| Missed delivered-but-unpaid POs, or collapsed two categories into one | skills under-specified | two named groups, PO ids required in each, neither standing in for the other |
+
+**And one genuine gap in the domain model.** An invoice with stored status
+`pending` whose due date passed a year ago — is it pending or overdue? The
+glossary never said, so the agent reported the stored field while the
+buyer's own aggregates counted it overdue. Resolved by decree as
+**Effectively Overdue** ([CONTEXT.md](CONTEXT.md)); the eval found a hole
+in the model, not just in the code.
+
+**Results.** 12/12 with `--runs 3` (35/36 individual runs). The
+single-run 12/12 that preceded it was partly luck — consistency mode
+exposed q11 passing 1-of-3 — which is the whole reason repetition exists
+here: the Responses API offers no seed, so one green run proves little.
+
 ## Adversarial review: what it found
 
 A multi-agent review (4 dimension finders → one refuter per finding,

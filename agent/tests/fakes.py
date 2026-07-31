@@ -105,6 +105,8 @@ def canned_api(log: RequestLog) -> httpx.MockTransport:
             return httpx.Response(200, json={"id": 2, "name": "SteelWorks Manufacturing"})
         if path == "/analytics/overdue-summary":
             return httpx.Response(200, json={"total_overdue_amount": 0.0})
+        if path == "/analytics/spend-by-supplier":
+            return httpx.Response(200, json={"data": [], "currency": "USD"})
         return httpx.Response(200, json=[])
 
     return httpx.MockTransport(handler)

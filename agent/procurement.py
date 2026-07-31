@@ -204,3 +204,6 @@ class ProcurementClient:
 
     def overdue_summary(self) -> Any:
         return self._request("GET", "/analytics/overdue-summary")
+
+    def spend_summary(self) -> Any:
+        return self._request("GET", "/analytics/spend-by-supplier")

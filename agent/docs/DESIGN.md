@@ -67,6 +67,17 @@ composition root; tenant identity remains `supplier_id` alone.)
 
 The interface is the test surface: harness and tests assert through `ask() -> TurnResult` (+ sink contents), never past the seam. Internal seams (prune as pure fn, ProcurementClient over MockTransport) are used by their own tests only and are not exported through Session's interface. Old-style unit tests against the raw loop are superseded, not layered.
 
+## Revised after evals: `get_invoiced_totals`
+
+The original tool surface deliberately omitted `/analytics/spend-by-supplier`,
+reasoning that scoped to one tenant it "degenerates into my totals" and duplicates
+`list_invoices`. Live eval runs falsified that: asked to compare invoiced against
+contract value, the model summed ten invoices to 153,250 where the truth is 154,250,
+repeatedly, and prompt-level "show your work and re-check" instructions did not fix
+it. The tool exists because the arithmetic must not be the model's. General rule
+this yields: where the server can compute an aggregate, expose it as a tool rather
+than asking the model to derive it from rows.
+
 ## Rejected: streaming event generator (`run() -> Iterator[TurnEvent]`)
 
 Considered as the primary seam (design-it-twice candidate 3). Rejected for now: exactly one consumer today would stream (a live REPL nicety), and one consumer = hypothetical seam. Its costs are concrete: a drain-or-close generator contract callers can silently violate, seven event types, and a second observation channel ~70% redundant with traces. If a live UI materializes, `run()` becomes a real seam and can be added *around* the existing loop without breaking `ask()` callers. Two of its details were adopted anyway: `stop_reason` as an outcome, and construction-time tenancy verification.

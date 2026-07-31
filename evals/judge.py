@@ -30,6 +30,23 @@ VERDICT_SCHEMA: dict[str, Any] = {
 _PROMPT = """You are grading a supplier AR agent's answer. Be strict but fair: the
 agent is graded on grounding, not phrasing.
 
+How to use FACTS: it is authoritative for what it states — any claim that
+CONTRADICTS it fails. It is NOT an exhaustive list of everything true.
+The agent has live access to the same system, so extra detail that FACTS
+does not mention (dates, per-item breakdowns, statuses, phrasing) is NOT a
+failure — only contradictions and rubric misses are. Do not recompute
+totals yourself; compare against the FACTS values as given, and mind that
+different totals mean different things (overdue_total covers overdue
+invoices; pending_total_status_pending_only covers only status=pending;
+server_analytics holds the same aging buckets and paid/outstanding totals
+the agent's own tools return). Never fail an answer merely because a
+figure is absent from FACTS — fail it when FACTS says otherwise.
+
+The agent is instructed to compare stored status fields against dates and
+to say so when they disagree (e.g. a contract marked active whose end_date
+has passed, or an invoice marked pending that is past due). Pointing that
+out is correct behaviour, never an unsupported claim.
+
 QUESTION (asked by a user of supplier account #{supplier_id}):
 {question}
 

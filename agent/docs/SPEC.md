@@ -27,10 +27,13 @@ elision instead); cross-tenant "buyer-side" answering of any kind.
    indistinguishable in wording (Existence Ambiguity).
 4. `ask(text) -> TurnResult{answer, tool_calls, events, usage, stop_reason}`; the loop
    passes **all** Responses output items back (`conversation += response.output`).
-5. Tool surface: 8 read tools (`get_my_account`, `list_invoices`, `get_invoice`,
+5. Tool surface: 9 read tools (`get_my_account`, `list_invoices`, `get_invoice`,
    `list_purchase_orders`, `get_purchase_order`, `list_contracts`, `search_catalog`,
-   `get_overdue_aging`) + 2 Gated Tools (`acknowledge_purchase_order`, `create_invoice`).
-   Strict schemas: `additionalProperties: false`, all properties required, optionals nullable.
+   `get_overdue_aging`, `get_invoiced_totals`) + 2 Gated Tools
+   (`acknowledge_purchase_order`, `create_invoice`). Strict schemas:
+   `additionalProperties: false`, all properties required, optionals nullable.
+   (`get_invoiced_totals` was added after eval runs showed the model mis-summing
+   ten invoices; server-side totals replace model arithmetic.)
 6. Gated Tools: loop-level interception; approval decisions APPROVE / APPROVE_FOR_SESSION
    (remembered by the Session, per tool) / DENY; a decline returns to the model as an
    ordinary tool result. Headless default policy is deny.
@@ -57,7 +60,8 @@ elision instead); cross-tenant "buyer-side" answering of any kind.
    `contract-reconciliation` (reconcile — the flex casualty).
 3. Skills own the decree rules: Monthly Contract Value = annual/12; Delivered PO
    (delivery_date set and <= today); Renewal Window (90 days, non-auto-renew ⇒ follow-up);
-   no silent model arithmetic — use `get_overdue_aging` or show per-item numbers.
+   Effectively Overdue (status overdue, or pending past its due date); no silent model
+   arithmetic — totals come from `get_invoiced_totals` / `get_overdue_aging`.
 
 ### FR4 — Evals (Stage 4)
 1. Harness runs each `evals/questions.json` question through a real Session

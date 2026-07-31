@@ -16,13 +16,30 @@ data that justifies it (ids, amounts, dates).
    account's acknowledgement. Offer to acknowledge them now: the
    `acknowledge_purchase_order` tool asks the user for approval before it
    runs; if the user declines, accept it and move on.
-3. `list_purchase_orders` + `list_invoices` — unbilled deliveries: a PO
-   counts as delivered only when its `delivery_date` is set and is on or
-   before today. A delivered PO with no invoice raised against it (no
-   invoice whose `po_id` matches) is revenue waiting to be billed —
-   suggest creating the invoice (also approval-gated).
-4. `list_contracts` with `expiring_within_days: 90` — contracts in the
-   Renewal Window. A non-auto-renewing contract here needs a renewal
+3. `list_purchase_orders` (no status filter) + `list_invoices` (no status
+   filter) — deliveries awaiting payment. Do this cross-reference
+   explicitly, PO by PO; it is the step most often skipped:
+   - Keep only POs where `delivery_date` is set and is on or before today
+     (the Delivered rule). Ignore PO status here — acknowledged POs count.
+   - For each delivered PO, look for an invoice whose `po_id` equals that
+     PO's id **and** whose status is `paid`.
+   - Write out the comparison first: PO id → matching invoice id and
+     status, or "none".
+   - Then report **two separate categories**, each naming its PO ids:
+     **(a) Delivered, not invoiced** — no invoice references the PO.
+     Revenue waiting to be billed; suggest creating the invoice
+     (approval-gated).
+     **(b) Delivered, invoiced, not yet paid** — an invoice exists but
+     none with status `paid`. Money owed; give the PO id and invoice id.
+   - Report each category separately even when one is empty. Never let
+     "(a) is empty" stand in for both — a delivered PO with an unpaid
+     invoice still needs chasing.
+4. `list_contracts` with `expiring_within_days: 90` — candidates for the
+   Renewal Window. The filter has no lower bound, so it also returns
+   contracts that ended long ago: keep only those whose `end_date` is
+   between today and 90 days from today. A contract whose `end_date` has
+   already passed is lapsed, not expiring — report it that way. A
+   non-auto-renewing contract genuinely in the window needs a renewal
    conversation; an auto-renewing one is informational only.
 
 ## Output shape

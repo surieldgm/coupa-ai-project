@@ -36,6 +36,10 @@ _Avoid_: dangerous tool, write tool, confirmation parameter
 One twelfth of a contract's annual value. The only sanctioned monthly derivation; contracts store annual value only.
 _Avoid_: monthly spend, monthly budget
 
+**Effectively Overdue**:
+An invoice whose stored status is `overdue`, or whose status is `pending` and whose due date has passed. The buyer's aggregates use this rule, so the agent reports these as overdue rather than pending.
+_Avoid_: late, past due, aging
+
 **Delivered PO**:
 A purchase order whose delivery date is set and is on or before today. Resolves the API's "expected or actual" ambiguity by decree.
 _Avoid_: completed PO, fulfilled order

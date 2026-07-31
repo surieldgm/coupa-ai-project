@@ -31,7 +31,7 @@
   "6": {
     "supplier": "SteelWorks Manufacturing",
     "tools": {"any_of": [{"name": "list_contracts"}]},
-    "judge": "The answer must correctly state whether any of this account's contracts end within 90 days of FACTS.as_of, judged against FACTS.contracts end_date values. The question implies all suppliers, so the answer must also make clear its visibility is limited to this account; claims about other suppliers' contracts fail."
+    "judge": "The answer must correctly state whether any of this account's contracts end within 90 days AFTER FACTS.as_of, judged against FACTS.contracts end_date values. A contract whose end_date is already before FACTS.as_of has lapsed and must NOT be described as expiring soon — calling it upcoming is a failure. The question implies all suppliers, so the answer must also make clear its visibility is limited to this account; claims about other suppliers' contracts fail."
   },
   "7": {
     "supplier": "CleanSpace Facilities",
@@ -41,7 +41,7 @@
   },
   "8": {
     "supplier": "SteelWorks Manufacturing",
-    "tools": {"all_of": [{"name": "list_contracts"}, {"name": "list_invoices"}]},
+    "tools": {"all_of": [{"name": "list_contracts"}, {"name": "get_invoiced_totals"}]},
     "facts": ["invoiced_and_annual"],
     "judge": "The answer must state the total invoiced amount (FACTS.invoiced_total) and the annual contract value (FACTS.contracts[].annual_value) and compare them. Totals contradicting FACTS fail."
   },
@@ -56,12 +56,12 @@
       {"name": "get_overdue_aging"}, {"name": "list_invoices"},
       {"name": "list_purchase_orders"}, {"name": "list_contracts"}
     ]},
-    "judge": "The answer must be an actionable follow-up list grounded in FACTS: overdue invoices (overdue_invoice_ids), submitted POs (submitted_po_ids), unbilled deliveries (delivered_pos_without_paid_invoice), and/or renewal-window contracts. Recommendations unsupported by FACTS fail; empty categories correctly reported as empty are fine."
+    "judge": "The answer must be an actionable follow-up list grounded in FACTS: overdue invoices (overdue_invoice_ids), submitted POs (submitted_po_ids), and delivered POs lacking a PAID invoice (delivered_pos_without_paid_invoice — note these may have an unpaid invoice; an answer that only rules out POs with NO invoice has missed this category). Contract items are fine either way: where a contract's status field and its end_date disagree, describing either the stored status or the date reality is acceptable. Empty categories correctly reported as empty are fine."
   },
   "11": {
     "supplier": "SteelWorks Manufacturing",
     "tools": {"any_of": [{"name": "get_overdue_aging"}, {"name": "list_invoices"}]},
-    "judge": "The answer must be an account-health summary consistent with FACTS: the overdue picture (overdue_invoice_ids), outstanding amounts (pending_total / invoiced_total), and contract runway (contracts). Any number or claim contradicting FACTS fails."
+    "judge": "The answer must be an account-health summary consistent with FACTS: the overdue picture (overdue_invoice_ids, overdue_total), outstanding amounts (invoiced_total), and contract runway (contracts, including a contract whose term has ended). Every PO id in FACTS.delivered_pos_without_paid_invoice must be surfaced somewhere as still awaiting payment — describing them as invoiced-but-unpaid is correct and expected, and separately saying 'no delivered POs lack an invoice entirely' is also correct (a different category); the failure is not mentioning those PO ids at all. Invoices in FACTS.overdue_invoice_ids must be presented as overdue; their stored status in FACTS.invoices may be 'pending' (past due), and mentioning that stored value alongside is fine. Any number contradicting FACTS fails."
   },
   "12": {
     "supplier": "SteelWorks Manufacturing",

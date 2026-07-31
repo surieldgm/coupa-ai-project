@@ -28,6 +28,25 @@ class SchemaContractTest(unittest.TestCase):
             self.assertFalse(params["additionalProperties"])
             self.assertEqual(set(params["required"]), set(params["properties"]))
 
+    def test_the_expected_tool_surface_is_registered(self) -> None:
+        names = {s["name"] for s in make_registry(RequestLog()).list_tools()}
+        self.assertEqual(
+            names,
+            {
+                "get_my_account",
+                "list_invoices",
+                "get_invoice",
+                "list_purchase_orders",
+                "get_purchase_order",
+                "list_contracts",
+                "search_catalog",
+                "get_overdue_aging",
+                "get_invoiced_totals",
+                "acknowledge_purchase_order",
+                "create_invoice",
+            },
+        )
+
     def test_only_the_two_mutations_are_gated(self) -> None:
         registry = make_registry(RequestLog())
         gated = {s["name"] for s in registry.list_tools() if registry.is_gated(s["name"])}

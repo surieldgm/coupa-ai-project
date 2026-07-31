@@ -70,6 +70,31 @@ def transport() -> httpx.MockTransport:
             return httpx.Response(200, json=rows)
         if path == "/contracts":
             return httpx.Response(200, json=[])
+        if path == "/analytics/overdue-summary":
+            return httpx.Response(
+                200,
+                json={
+                    "total_overdue_amount": 200.0,
+                    "total_overdue_count": 1,
+                    "aging_buckets": {"1-30_days": {"count": 1, "total": 200.0, "invoices": []}},
+                },
+            )
+        if path == "/analytics/spend-by-supplier":
+            return httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "supplier_id": int(params.get("supplier_id", 0)),
+                            "total_invoiced": 300.0,
+                            "total_paid": 100.0,
+                            "total_outstanding": 200.0,
+                            "invoice_count": 2,
+                        }
+                    ],
+                    "currency": "USD",
+                },
+            )
         raise AssertionError(f"unexpected path {path}")
 
     return httpx.MockTransport(handler)
@@ -105,6 +130,18 @@ class GroundTruthTest(unittest.TestCase):
         context = make_gt().account_snapshot(2)
         json.dumps(context)  # must not raise
         self.assertIn("overdue_invoice_ids", context)
+
+    def test_snapshot_mirrors_the_agents_own_server_figures(self) -> None:
+        """A judge without these rejects correct answers as ungrounded."""
+        analytics = make_gt().account_snapshot(2)["server_analytics"]
+        self.assertEqual(analytics["total_outstanding"], 200.0)
+        self.assertEqual(analytics["total_paid"], 100.0)
+        self.assertIn("1-30_days", analytics["aging_buckets"])
+
+    def test_snapshot_carries_per_item_rows_not_only_aggregates(self) -> None:
+        snapshot = make_gt().account_snapshot(2)
+        self.assertEqual({i["id"] for i in snapshot["invoices"]}, {2001, 2002})
+        self.assertEqual({p["id"] for p in snapshot["purchase_orders"]}, {1001, 1002, 1003})
 
 
 if __name__ == "__main__":
