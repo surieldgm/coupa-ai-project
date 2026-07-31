@@ -46,6 +46,10 @@ Grade against the RUBRIC only, checking claims against FACTS. Formatting,
 tone, and extra helpful detail are not failures."""
 
 
+class JudgeError(Exception):
+    """The judge produced no usable verdict (refusal, truncation, bad JSON)."""
+
+
 class Judge:
     def __init__(self, client: OpenAI, model: str) -> None:
         self._client = client
@@ -79,4 +83,14 @@ class Judge:
                 }
             },
         )
-        return json.loads(response.output_text)
+        status = getattr(response, "status", "completed")
+        if status not in ("completed", None):
+            raise JudgeError(f"judge response was {status}, not completed")
+        text = response.output_text or ""
+        try:
+            verdict: dict[str, Any] = json.loads(text)
+        except json.JSONDecodeError as exc:
+            # Refusals and truncated outputs land here: output_text is empty
+            # or mid-JSON. An unparseable verdict is an error, never a pass.
+            raise JudgeError(f"judge returned unparseable output: {text[:120]!r}") from exc
+        return verdict

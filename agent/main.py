@@ -27,6 +27,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if not os.getenv("OPENAI_API_KEY"):
+        raise SystemExit("OPENAI_API_KEY is not set — copy .env.example to .env and add your key")
+
     trace_path = (
         Path(__file__).resolve().parent
         / "traces"

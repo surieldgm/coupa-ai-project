@@ -25,6 +25,22 @@ def ensure_choice(value: str | None, allowed: tuple[str, ...], field: str) -> No
         raise ProcurementError("invalid_args", f"{field} must be one of {', '.join(allowed)}")
 
 
+def resource_id(value: object, field: str) -> int:
+    """Coerce a model-supplied resource id to an int before it reaches a URL path.
+
+    Tenancy depends on this: httpx normalizes dot segments client-side, so a
+    string id like "../suppliers" would escape the resource prefix and land on
+    an endpoint that ignores the pinned supplier_id. Path identity must never
+    depend on the model emitting the right JSON type.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise ProcurementError("invalid_args", f"{field} must be an integer id")
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise ProcurementError("invalid_args", f"{field} must be an integer id") from None
+
+
 @dataclass(frozen=True)
 class ProcurementError(Exception):
     kind: ErrorKind
@@ -100,7 +116,7 @@ class ProcurementClient:
         )
 
     def get_invoice(self, invoice_id: int) -> Any:
-        return self._request("GET", f"/invoices/{invoice_id}")
+        return self._request("GET", f"/invoices/{resource_id(invoice_id, 'invoice_id')}")
 
     def create_invoice(
         self,
@@ -113,7 +129,12 @@ class ProcurementClient:
         return self._request(
             "POST",
             "/invoices",
-            body={"po_id": po_id, "amount": amount, "due_date": due_date, "currency": currency},
+            body={
+                "po_id": None if po_id is None else resource_id(po_id, "po_id"),
+                "amount": amount,
+                "due_date": due_date,
+                "currency": currency,
+            },
         )
 
     # -- purchase orders --------------------------------------------------
@@ -138,10 +159,11 @@ class ProcurementClient:
         )
 
     def get_purchase_order(self, po_id: int) -> Any:
-        return self._request("GET", f"/purchase-orders/{po_id}")
+        return self._request("GET", f"/purchase-orders/{resource_id(po_id, 'po_id')}")
 
     def acknowledge_purchase_order(self, po_id: int) -> Any:
-        return self._request("POST", f"/purchase-orders/{po_id}/acknowledge")
+        path = f"/purchase-orders/{resource_id(po_id, 'po_id')}/acknowledge"
+        return self._request("POST", path)
 
     # -- contracts --------------------------------------------------------
 

@@ -42,7 +42,12 @@ class ConsoleApprovals:
     def decide(self, request: ApprovalRequest) -> Decision:
         print(f"\n  ! {request.summary}")
         while True:
-            answer = input("  approve? [y]es / [n]o / [a]lways this session: ").strip().lower()
+            try:
+                answer = input("  approve? [y]es / [n]o / [a]lways this session: ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                # Fail closed: an interrupted prompt is not an approval.
+                print("\n  (interrupted — treating as declined)")
+                return Decision.DENY
             if answer in ("y", "yes"):
                 return Decision.APPROVE
             if answer in ("n", "no"):

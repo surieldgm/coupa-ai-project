@@ -35,6 +35,45 @@ class TenancyInjectionTest(unittest.TestCase):
         self.assertEqual(set(params), {"supplier_id"})
 
 
+class PathIdentityTest(unittest.TestCase):
+    """Tenancy depends on the URL path, not only on the query param: an id
+    that escapes its resource prefix reaches endpoints that ignore
+    supplier_id. Model-supplied ids must never shape the path."""
+
+    TRAVERSALS = ("../suppliers", "../suppliers/1", "..%2Fsuppliers", "1/../../suppliers")
+
+    def test_traversal_ids_are_refused_before_any_request(self) -> None:
+        for bad in self.TRAVERSALS:
+            log = RequestLog()
+            client = make_client(log)
+            with self.assertRaises(ProcurementError, msg=bad) as ctx:
+                client.get_invoice(bad)  # type: ignore[arg-type]
+            self.assertEqual(ctx.exception.kind, "invalid_args")
+            self.assertEqual(log.requests, [], f"request escaped for {bad!r}")
+
+    def test_every_id_bearing_call_keeps_its_resource_prefix(self) -> None:
+        log = RequestLog()
+        client = make_client(log)
+        client.get_invoice(2014)
+        client.get_purchase_order(1013)
+        client.acknowledge_purchase_order(1013)
+        prefixes = [r.url.path.split("/")[1] for r in log.requests]
+        self.assertEqual(prefixes, ["invoices", "purchase-orders", "purchase-orders"])
+
+    def test_non_integer_ids_are_refused(self) -> None:
+        log = RequestLog()
+        client = make_client(log)
+        for bad in ("abc", None, 1.5, True, [2014]):
+            with self.assertRaises(ProcurementError, msg=repr(bad)):
+                client.get_purchase_order(bad)  # type: ignore[arg-type]
+        self.assertEqual(log.requests, [])
+
+    def test_numeric_strings_are_accepted_and_normalized(self) -> None:
+        log = RequestLog()
+        make_client(log).get_invoice("2014")  # type: ignore[arg-type]
+        self.assertEqual(log.requests[0].url.path, "/invoices/2014")
+
+
 class ErrorMappingTest(unittest.TestCase):
     def test_404_maps_to_existence_ambiguous_not_found(self) -> None:
         log = RequestLog()

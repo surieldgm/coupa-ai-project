@@ -25,7 +25,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from agent.session import DEFAULT_MODEL, ModelError, TurnResult
+from agent.session import DEFAULT_MODEL, TurnResult
 from agent.wiring import make_session
 from evals.checks import Fact, ToolExpectation, check_facts, check_no_gate_events, check_tools
 from evals.ground_truth import GroundTruth
@@ -54,11 +54,12 @@ FACT_RESOLVERS: dict[str, FactResolver] = {
             min_matches=min(2, len(gt.catalog(s))),
         )
     ],
+    # Every overdue id must appear; the judge additionally rules out extras.
     "overdue_ids": lambda gt, s: [
         Fact(
             kind="any_text",
             values=[str(i) for i in gt.overdue_invoice_ids(s)],
-            min_matches=min(2, len(gt.overdue_invoice_ids(s))),
+            min_matches=len(gt.overdue_invoice_ids(s)),
         )
     ]
     if gt.overdue_invoice_ids(s)
@@ -85,15 +86,17 @@ def run_question(
     judge: Judge,
     api_base: str,
 ) -> dict[str, Any]:
-    supplier_id = gt.supplier_id(expectation["supplier"])
     result: TurnResult | None = None
     record: dict[str, Any] = {"verdict": False, "layers": {}}
 
+    # One bad question must never sink the run: every failure below becomes
+    # an "error" verdict for this question, and the report still gets written.
     try:
+        supplier_id = gt.supplier_id(expectation["supplier"])
         session = make_session(supplier_id, base_url=api_base)
         result = session.ask(question["question"])
-    except ModelError as exc:
-        record["error"] = str(exc)
+    except Exception as exc:  # noqa: BLE001 — see above
+        record["error"] = f"{type(exc).__name__}: {exc}"
         record["verdict"] = "error"
         return record
 
@@ -106,21 +109,32 @@ def run_question(
     behavior += check_no_gate_events(list(result.events))
     record["layers"]["behavior"] = behavior
 
-    facts: list[Fact] = []
-    for name in expectation.get("facts", []):
-        facts.extend(FACT_RESOLVERS[name](gt, supplier_id))
-    fact_failures = check_facts(result.answer, facts)
+    try:
+        facts: list[Fact] = []
+        for name in expectation.get("facts", []):
+            facts.extend(FACT_RESOLVERS[name](gt, supplier_id))
+        fact_failures = check_facts(result.answer, facts)
+    except Exception as exc:  # noqa: BLE001 — a broken resolver is an error, not a pass
+        record["error"] = f"fact resolution failed: {type(exc).__name__}: {exc}"
+        record["verdict"] = "error"
+        return record
     record["layers"]["facts"] = fact_failures
 
     judge_verdict: dict[str, Any] | None = None
     if expectation.get("judge"):
-        judge_verdict = judge.grade(
-            question=question["question"],
-            answer=result.answer,
-            rubric=expectation["judge"],
-            facts=gt.account_snapshot(supplier_id),
-            supplier_id=supplier_id,
-        )
+        try:
+            judge_verdict = judge.grade(
+                question=question["question"],
+                answer=result.answer,
+                rubric=expectation["judge"],
+                facts=gt.account_snapshot(supplier_id),
+                supplier_id=supplier_id,
+            )
+        except Exception as exc:  # noqa: BLE001 — a flaky judge must not sink the run
+            record["error"] = f"judge failed: {type(exc).__name__}: {exc}"
+            record["layers"]["judge"] = None
+            record["verdict"] = "error"
+            return record
     record["layers"]["judge"] = judge_verdict
 
     record["verdict"] = (
@@ -136,12 +150,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Supplier AR Agent eval harness")
     parser.add_argument("--runs", nargs="?", const=3, default=1, type=int,
                         help="runs per question (bare --runs means 3)")
+    parser.add_argument("--judge-model", default=None, help="override the rubric judge model")
     parser.add_argument("--questions", default="", help="comma-separated ids, default all")
     parser.add_argument("--api-base", default=os.getenv("API_BASE_URL") or "http://localhost:8000")
     args = parser.parse_args()
 
     if not os.getenv("OPENAI_API_KEY"):
         raise SystemExit("OPENAI_API_KEY is not set — add it to .env (see issue #2)")
+    if args.runs < 1:
+        raise SystemExit("--runs must be at least 1")
 
     questions = json.loads((EVALS_DIR / "questions.json").read_text(encoding="utf-8"))
     expectations = json.loads((EVALS_DIR / "expectations.json").read_text(encoding="utf-8"))
@@ -152,44 +169,58 @@ def main() -> None:
     gt = GroundTruth(args.api_base)
     from openai import OpenAI  # composition here, not at module import
 
-    judge = Judge(
-        OpenAI(), os.getenv("EVAL_JUDGE_MODEL") or os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
+    judge_model = (
+        args.judge_model
+        or os.getenv("EVAL_JUDGE_MODEL")
+        or os.getenv("OPENAI_MODEL")
+        or DEFAULT_MODEL
     )
+    judge = Judge(OpenAI(), judge_model)
+    report_judge_model = judge_model
 
     report: dict[str, Any] = {
         "started": datetime.now(UTC).isoformat(),
         "runs_per_question": args.runs,
+        "agent_model": os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
+        "judge_model": report_judge_model,
         "questions": [],
     }
-    for question in questions:
-        expectation = expectations[str(question["id"])]
-        runs = [
-            run_question(question, expectation, gt, judge, args.api_base)
-            for _ in range(args.runs)
-        ]
-        passed = sum(1 for r in runs if r["verdict"] is True)
-        entry = {
-            "id": question["id"],
-            "category": question["category"],
-            "question": question["question"],
-            "supplier": expectation["supplier"],
-            "runs": runs,
-            "passed_runs": passed,
-            "verdict": "pass" if passed * 2 > len(runs) else "fail",
-        }
-        report["questions"].append(entry)
-        print(f"  q{question['id']:>2} [{question['category']}] {entry['verdict']}"
-              f" ({passed}/{len(runs)})", file=sys.stderr)
-
-    total = len(report["questions"])
-    passed_total = sum(1 for q in report["questions"] if q["verdict"] == "pass")
-    report["summary"] = {"total": total, "passed": passed_total}
-
     results_dir = EVALS_DIR / "results"
     results_dir.mkdir(exist_ok=True)
     out = results_dir / f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}.json"
-    out.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"{passed_total}/{total} passed — report: {out}")
+
+    def write_report() -> None:
+        total = len(report["questions"])
+        passed_total = sum(1 for q in report["questions"] if q["verdict"] == "pass")
+        report["summary"] = {"total": total, "passed": passed_total}
+        out.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    try:
+        for question in questions:
+            expectation = expectations[str(question["id"])]
+            runs = [
+                run_question(question, expectation, gt, judge, args.api_base)
+                for _ in range(args.runs)
+            ]
+            passed = sum(1 for r in runs if r["verdict"] is True)
+            entry = {
+                "id": question["id"],
+                "category": question["category"],
+                "question": question["question"],
+                "supplier": expectation["supplier"],
+                "runs": runs,
+                "passed_runs": passed,
+                "verdict": "pass" if passed * 2 > len(runs) else "fail",
+            }
+            report["questions"].append(entry)
+            print(f"  q{question['id']:>2} [{question['category']}] {entry['verdict']}"
+                  f" ({passed}/{len(runs)})", file=sys.stderr)
+            write_report()  # incremental: an interrupted run still leaves a report
+    finally:
+        write_report()
+
+    summary = report["summary"]
+    print(f"{summary['passed']}/{summary['total']} passed — report: {out}")
 
 
 if __name__ == "__main__":

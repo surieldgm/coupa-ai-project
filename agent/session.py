@@ -209,16 +209,34 @@ class Session:
                 stop_reason = "completed"
                 break
 
-            for call in calls:
-                record = self._execute_call(call, events)
-                tool_calls.append(record)
-                self._conversation.append(
-                    {
-                        "type": "function_call_output",
-                        "call_id": call.call_id,
-                        "output": record.output,
-                    }
-                )
+            # Every function_call already in the conversation must get its
+            # paired output, even if execution blows up: an orphaned call id
+            # is an API error on the next request and would poison the Session.
+            answered: set[str] = set()
+            try:
+                for call in calls:
+                    record = self._execute_call(call, events)
+                    tool_calls.append(record)
+                    self._conversation.append(
+                        {
+                            "type": "function_call_output",
+                            "call_id": call.call_id,
+                            "output": record.output,
+                        }
+                    )
+                    answered.add(call.call_id)
+            finally:
+                for call in calls:
+                    if call.call_id not in answered:
+                        self._conversation.append(
+                            {
+                                "type": "function_call_output",
+                                "call_id": call.call_id,
+                                "output": error_envelope(
+                                    "api_error", "the tool did not complete"
+                                ),
+                            }
+                        )
 
         self._emit(
             events,
@@ -246,13 +264,15 @@ class Session:
         name: str = call.name
         started = time.monotonic()
         try:
-            args: dict[str, Any] = json.loads(call.arguments) if call.arguments else {}
+            parsed: Any = json.loads(call.arguments) if call.arguments else {}
         except json.JSONDecodeError:
-            args = {}
-            status, output = "invalid_args", error_envelope(
-                "invalid_args", "arguments were not valid JSON"
+            parsed = None
+        if not isinstance(parsed, dict):
+            output = error_envelope("invalid_args", "arguments must be a JSON object")
+            return self._finish_call(
+                events, call, name, {}, "invalid_args", output, False, None, started
             )
-            return self._finish_call(events, call, name, args, status, output, False, None, started)
+        args: dict[str, Any] = parsed
 
         # Strict schemas send explicit nulls for omitted optionals; drop them
         # so tool functions see their own defaults.

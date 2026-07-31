@@ -11,6 +11,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 from openai import OpenAI
@@ -138,6 +139,67 @@ class GateTest(unittest.TestCase):
         )
         acknowledged = [r for r in log.requests if "acknowledge" in r.url.path]
         self.assertEqual(len(acknowledged), 2)
+
+
+class MalformedArgumentsTest(unittest.TestCase):
+    def test_non_object_arguments_do_not_crash_the_turn(self) -> None:
+        for raw in ("null", "[1, 2]", '"hi"', "123", "{oops"):
+            call = SimpleNamespace(
+                type="function_call", name="list_invoices", arguments=raw, call_id="c1"
+            )
+            fake = FakeOpenAI(
+                [
+                    scripted_response([call]),
+                    scripted_response([message_item()], text="recovered"),
+                ]
+            )
+            result = make_session(fake, RequestLog()).ask("bad args")
+            self.assertEqual(result.stop_reason, "completed", raw)
+            payload = json.loads(result.tool_calls[0].output)
+            self.assertEqual(payload["error"]["type"], "invalid_args", raw)
+
+    def test_traversal_id_is_refused_as_invalid_args(self) -> None:
+        log = RequestLog()
+        fake = FakeOpenAI(
+            [
+                scripted_response([fn_call("get_invoice", {"invoice_id": "../suppliers"}, "c1")]),
+                scripted_response([message_item()], text="cannot do that"),
+            ]
+        )
+        result = make_session(fake, log).ask("invoice ../suppliers")
+        payload = json.loads(result.tool_calls[0].output)
+        self.assertEqual(payload["error"]["type"], "invalid_args")
+        self.assertEqual([r.url.path for r in log.requests], [])
+
+
+class ConversationIntegrityTest(unittest.TestCase):
+    def test_every_function_call_gets_a_paired_output_even_on_failure(self) -> None:
+        class ExplodingSink:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def emit(self, event: dict[str, Any]) -> None:
+                self.calls += 1
+                if event.get("event") == "tool_call":
+                    raise RuntimeError("sink exploded mid-turn")
+
+        fake = FakeOpenAI([scripted_response([fn_call("list_invoices", {}, "c1")])])
+        session = make_session(fake, RequestLog())
+        session._trace = ExplodingSink()  # type: ignore[assignment]
+
+        with self.assertRaises(RuntimeError):
+            session.ask("boom")
+
+        conversation = session._conversation
+        call_ids = {
+            getattr(i, "call_id", None) for i in conversation
+            if getattr(i, "type", "") == "function_call"
+        }
+        output_ids = {
+            i["call_id"] for i in conversation
+            if isinstance(i, dict) and i.get("type") == "function_call_output"
+        }
+        self.assertEqual(call_ids, output_ids, "orphaned function_call would break the next call")
 
 
 class TraceTest(unittest.TestCase):

@@ -20,7 +20,8 @@
   "4": {
     "supplier": "SteelWorks Manufacturing",
     "tools": {"any_of": [{"name": "get_overdue_aging"}, {"name": "list_invoices"}]},
-    "facts": ["overdue_ids"]
+    "facts": ["overdue_ids"],
+    "judge": "The answer must identify exactly the invoices in FACTS.overdue_invoice_ids as currently overdue — no more, no fewer. Naming an invoice that is not in that list, or omitting one that is, fails. Presenting them by aging bucket is fine."
   },
   "5": {
     "supplier": "Acme Technology Solutions",
